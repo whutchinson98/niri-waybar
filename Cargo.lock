@@ -422,9 +422,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "niri-ipc"
+version = "25.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a336854faf3818ec2399152c994796e2e8d723867f9987f1e0cfeaae1dadaed1"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "niri-waybar"
 version = "0.1.0"
 dependencies = [
+ "niri-ipc",
+ "serde",
+ "serde_json",
  "waybar-cffi",
 ]
 
@@ -567,6 +580,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 dependencies = [
  "serde_core",
+ "serde_derive",
 ]
 
 [[package]]
@@ -587,6 +601,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.106",
+]
+
+[[package]]
+name = "serde_json"
+version = "1.0.145"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "402a6f66d8c709116cf22f558eab210f5a50187f702eb4d7e5ef38d9a7f1c79c"
+dependencies = [
+ "itoa",
+ "memchr",
+ "ryu",
+ "serde",
+ "serde_core",
 ]
 
 [[package]]

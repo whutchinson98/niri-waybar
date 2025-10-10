@@ -2,6 +2,15 @@
 name = "niri-waybar"
 version = "0.1.0"
 edition = "2024"
+crate-type = ["cdylib"]
+
 
 [dependencies]
+niri-ipc = "25.8.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
 waybar-cffi = "0.1.1"
+
+[[example]]
+name = "hello-world"
+crate-type = ["cdylib"]
