@@ -1,0 +1,17 @@
+[
+  {
+    "cffi/niri-waybar": {
+        "module_path": "target/debug/libniri_waybar.so"
+    },
+    "height": 24,
+    "modules-center": [],
+    "modules-left": [
+      "cffi/niri-waybar"
+    ],
+    "spacing": 0,
+    "tray": {
+      "icon-size": 15,
+      "spacing": 8
+    }
+  }
+]
