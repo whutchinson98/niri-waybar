@@ -18,22 +18,23 @@
         pkgs = import nixpkgs {
           system = system;
         };
+        
+        rustToolchain = with fenix.packages.${system}; combine [
+          complete.rustc
+          complete.rust-src
+          complete.cargo
+          complete.clippy
+          complete.rustfmt
+          complete.rust-analyzer
+        ];
+        
         packages = with pkgs; [
           cargo-info
           cargo-udeps
           just
-          (
-            with fenix.packages.${system};
-            combine [
-              complete.rustc
-              complete.rust-src
-              complete.cargo
-              complete.clippy
-              complete.rustfmt
-              complete.rust-analyzer
-            ]
-          )
+          rustToolchain
         ];
+        
         libraries = with pkgs; [
           pkg-config
           pango
@@ -43,8 +44,44 @@
           gdk-pixbuf
           gtk3
         ];
+        
+        niri-waybar = pkgs.rustPlatform.buildRustPackage {
+          pname = "niri-waybar";
+          version = "0.1.0";
+          
+          src = ./.;
+          
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
+          
+          nativeBuildInputs = with pkgs; [
+            pkg-config
+            rustToolchain
+          ];
+          
+          buildInputs = libraries;
+          
+          # Build as cdylib
+          buildPhase = ''
+            cargo build --release --lib
+          '';
+          
+          installPhase = ''
+            mkdir -p $out/lib
+            cp target/release/libniri_waybar.so $out/lib/
+          '';
+          
+          PKG_CONFIG_PATH = "${pkgs.lib.makeLibraryPath libraries}/../lib/pkgconfig";
+        };
+        
       in
       {
+        packages = {
+          default = niri-waybar;
+          niri-waybar = niri-waybar;
+        };
+        
         devShell = pkgs.mkShell {
           buildInputs = packages ++ libraries;
           nativeBuildInputs = [ pkgs.pkg-config ];
