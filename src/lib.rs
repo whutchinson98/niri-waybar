@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use std::thread;
-use waybar_cffi::gtk::{Box as GtkBox, Label, Orientation};
+use waybar_cffi::gtk::gdk::EventMask;
+use waybar_cffi::gtk::{Box as GtkBox, EventBox, Label, Orientation};
 use waybar_cffi::{
     InitInfo, Module,
     gtk::{glib, prelude::*},
@@ -28,10 +29,7 @@ impl Module for NiriWaybar {
             .expect("failed to send request");
 
         let initial_workspaces = match workspaces {
-            Ok(niri_ipc::Response::Workspaces(workspaces)) => {
-                println!("{workspaces:?}");
-                workspaces
-            }
+            Ok(niri_ipc::Response::Workspaces(workspaces)) => workspaces,
             Ok(_) => unreachable!(),
             Err(e) => {
                 println!("Error: {e}");
@@ -89,10 +87,24 @@ fn update_workspace_labels(container: &GtkBox, workspaces: &[niri_ipc::Workspace
             style_context.add_class("focused");
         }
 
-        // TODO: add click handler to switch workspaces
+        // Wrap label in EventBox to handle events
+        let event_box = EventBox::new();
+        event_box.add(&label);
+        event_box.add_events(EventMask::BUTTON_PRESS_MASK | EventMask::BUTTON_RELEASE_MASK);
 
-        container.add(&label);
-        label.show();
+        let workspace_id = workspace.id;
+        event_box.connect_button_press_event(move |_event_box, event| {
+            if event.button() == 1
+                && let Err(e) = goto_workspace(workspace_id)
+            {
+                eprintln!("Failed to switch to workspace {}: {}", workspace_id, e);
+            }
+
+            glib::Propagation::Proceed
+        });
+
+        container.add(&event_box);
+        event_box.show_all();
     }
 }
 
@@ -111,13 +123,12 @@ fn niri_event_stream(
                 | niri_ipc::Event::WorkspaceActivated { .. }
                 | niri_ipc::Event::WorkspaceActiveWindowChanged { .. } => {
                     // Fetch updated workspaces
-                    if let Ok(mut new_socket) = niri_ipc::socket::Socket::connect() {
-                        if let Ok(Ok(niri_ipc::Response::Workspaces(ws))) =
+                    if let Ok(mut new_socket) = niri_ipc::socket::Socket::connect()
+                        && let Ok(Ok(niri_ipc::Response::Workspaces(ws))) =
                             new_socket.send(niri_ipc::Request::Workspaces)
-                        {
-                            // Send to main thread via channel (ignore errors if receiver dropped)
-                            let _ = sender.send_blocking(ws);
-                        }
+                    {
+                        // Send to main thread via channel (ignore errors if receiver dropped)
+                        let _ = sender.send_blocking(ws);
                     }
                 }
                 _ => {} // Ignore other events
@@ -128,8 +139,20 @@ fn niri_event_stream(
     Ok(())
 }
 
+fn goto_workspace(workspace_id: u64) -> anyhow::Result<()> {
+    let mut socket = niri_ipc::socket::Socket::connect()?;
+    let _ = socket
+        .send(niri_ipc::Request::Action(
+            niri_ipc::Action::FocusWorkspace {
+                reference: niri_ipc::WorkspaceReferenceArg::Id(workspace_id),
+            },
+        ))
+        .inspect_err(|e| eprintln!("Error: {e}"))?;
+
+    Ok(())
+}
+
 waybar_module!(NiriWaybar);
 
 #[derive(Deserialize)]
 struct Config {}
-
