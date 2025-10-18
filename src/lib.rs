@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::thread;
 use waybar_cffi::gtk::gdk::EventMask;
 use waybar_cffi::gtk::{Box as GtkBox, EventBox, Label, Orientation};
@@ -13,7 +14,8 @@ struct NiriWaybar;
 impl Module for NiriWaybar {
     type Config = Config;
 
-    fn init(info: &InitInfo, _config: Config) -> Self {
+    fn init(info: &InitInfo, config: Config) -> Self {
+        let format_icons = config.format_icons.unwrap_or_default();
         let root = info.get_root_widget();
 
         let container = GtkBox::new(Orientation::Horizontal, 0);
@@ -37,14 +39,14 @@ impl Module for NiriWaybar {
             }
         };
 
-        update_workspace_labels(&container, &initial_workspaces);
+        update_workspace_labels(&container, &initial_workspaces, &format_icons);
 
         let (sender, receiver) = async_channel::unbounded::<Vec<niri_ipc::Workspace>>();
 
         let container_clone = container.clone();
         glib::MainContext::default().spawn_local(async move {
             while let Ok(workspaces) = receiver.recv().await {
-                update_workspace_labels(&container_clone, &workspaces);
+                update_workspace_labels(&container_clone, &workspaces, &format_icons);
             }
         });
 
@@ -67,7 +69,7 @@ impl Module for NiriWaybar {
     fn do_action(&mut self, _action: &str) {}
 }
 
-fn update_workspace_labels(container: &GtkBox, workspaces: &[niri_ipc::Workspace]) {
+fn update_workspace_labels(container: &GtkBox, workspaces: &[niri_ipc::Workspace], format_icons: &HashMap<String, String>) {
     // Remove all existing labels
     for child in container.children() {
         container.remove(&child);
@@ -78,7 +80,7 @@ fn update_workspace_labels(container: &GtkBox, workspaces: &[niri_ipc::Workspace
 
     for workspace in sorted_workspaces {
         let name = workspace.name.clone().unwrap_or(workspace.id.to_string());
-        let label = Label::new(Some(&name));
+        let label = Label::new(Some(&format_icons.get(&name).unwrap_or(&name)));
 
         let style_context = label.style_context();
         style_context.add_class("niri_workspace");
@@ -155,4 +157,7 @@ fn goto_workspace(workspace_id: u64) -> anyhow::Result<()> {
 waybar_module!(NiriWaybar);
 
 #[derive(Deserialize)]
-struct Config {}
+struct Config {
+    #[serde(rename = "format-icons")]
+    format_icons: Option<HashMap<String, String>>,
+}

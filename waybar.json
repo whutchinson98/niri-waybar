@@ -1,7 +1,10 @@
 [
   {
     "cffi/niri-waybar": {
-        "module_path": "result/lib/libniri_waybar.so"
+        "module_path": "result/lib/libniri_waybar.so",
+        "format-icons": {
+          "browser": "󰈹"
+        }
     },
     "height": 24,
     "modules-center": [],

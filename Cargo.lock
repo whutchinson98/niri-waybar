@@ -487,13 +487,12 @@ dependencies = [
 
 [[package]]
 name = "niri-waybar"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-channel",
  "niri-ipc",
  "serde",
- "serde_json",
  "waybar-cffi",
 ]
 

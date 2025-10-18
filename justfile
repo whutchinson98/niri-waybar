@@ -19,3 +19,9 @@ check:
 
 test:
   cargo test
+
+build:
+  nix build
+
+run:
+  waybar -c waybar.json -s style.css
