@@ -2,9 +2,19 @@
   {
     "cffi/niri-waybar": {
         "module_path": "result/lib/libniri_waybar.so",
-        "format-icons": {
-          "browser": "󰈹"
-        }
+        "workspaces": [
+          {
+            "name": "browser",
+            "icon": "󰈹"
+          },
+          {
+            "name": "code",
+            "icon": "󰈙"
+          },
+          {
+            "name": "chat"
+          }
+        ]
     },
     "height": 24,
     "modules-center": [],
