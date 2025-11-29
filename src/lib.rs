@@ -1,5 +1,4 @@
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::thread;
 use waybar_cffi::gtk::gdk::EventMask;
 use waybar_cffi::gtk::{Box as GtkBox, EventBox, Label, Orientation};
@@ -15,7 +14,8 @@ impl Module for NiriWaybar {
     type Config = Config;
 
     fn init(info: &InitInfo, config: Config) -> Self {
-        let format_icons = config.format_icons.unwrap_or_default();
+        let formatted_workspaces = config.formatted_workspaces.unwrap_or_default();
+
         let root = info.get_root_widget();
 
         let container = GtkBox::new(Orientation::Horizontal, 0);
@@ -26,11 +26,11 @@ impl Module for NiriWaybar {
             niri_ipc::socket::Socket::connect().expect("failed to connect to niri-ipc");
 
         // Get initial workspaces
-        let workspaces = socket
+        let niri_workspaces = socket
             .send(niri_ipc::Request::Workspaces)
             .expect("failed to send request");
 
-        let initial_workspaces = match workspaces {
+        let initial_niri_workspaces = match niri_workspaces {
             Ok(niri_ipc::Response::Workspaces(workspaces)) => workspaces,
             Ok(_) => unreachable!(),
             Err(e) => {
@@ -39,14 +39,14 @@ impl Module for NiriWaybar {
             }
         };
 
-        update_workspace_labels(&container, &initial_workspaces, &format_icons);
+        update_workspace_labels(&container, &initial_niri_workspaces, &formatted_workspaces);
 
         let (sender, receiver) = async_channel::unbounded::<Vec<niri_ipc::Workspace>>();
 
         let container_clone = container.clone();
         glib::MainContext::default().spawn_local(async move {
             while let Ok(workspaces) = receiver.recv().await {
-                update_workspace_labels(&container_clone, &workspaces, &format_icons);
+                update_workspace_labels(&container_clone, &workspaces, &formatted_workspaces);
             }
         });
 
@@ -69,44 +69,50 @@ impl Module for NiriWaybar {
     fn do_action(&mut self, _action: &str) {}
 }
 
-fn update_workspace_labels(container: &GtkBox, workspaces: &[niri_ipc::Workspace], format_icons: &HashMap<String, String>) {
+fn update_workspace_labels(
+    container: &GtkBox,
+    workspaces: &[niri_ipc::Workspace],
+    formatted_workspaces: &Vec<WaybarWorkspace>,
+) {
     // Remove all existing labels
     for child in container.children() {
         container.remove(&child);
     }
 
-    let mut sorted_workspaces: Vec<_> = workspaces.iter().collect();
-    sorted_workspaces.sort_by_key(|w| w.id);
+    for formatted_workspace in formatted_workspaces {
+        let name = &formatted_workspace.name;
+        let icon = formatted_workspace.icon.as_deref().unwrap_or(name);
 
-    for workspace in sorted_workspaces {
-        let name = workspace.name.clone().unwrap_or(workspace.id.to_string());
-        let label = Label::new(Some(&format_icons.get(&name).unwrap_or(&name)));
+        let workspace = workspaces.iter().find(|w| w.name.as_ref() == Some(name));
 
-        let style_context = label.style_context();
-        style_context.add_class("niri_workspace");
+        if let Some(workspace) = workspace {
+            let label = Label::new(Some(icon));
+            let style_context = label.style_context();
+            style_context.add_class("niri_workspace");
 
-        if workspace.is_active {
-            style_context.add_class("focused");
-        }
-
-        // Wrap label in EventBox to handle events
-        let event_box = EventBox::new();
-        event_box.add(&label);
-        event_box.add_events(EventMask::BUTTON_PRESS_MASK | EventMask::BUTTON_RELEASE_MASK);
-
-        let workspace_id = workspace.id;
-        event_box.connect_button_press_event(move |_event_box, event| {
-            if event.button() == 1
-                && let Err(e) = goto_workspace(workspace_id)
-            {
-                eprintln!("Failed to switch to workspace {}: {}", workspace_id, e);
+            if workspace.is_active {
+                style_context.add_class("focused");
             }
 
-            glib::Propagation::Proceed
-        });
+            // Wrap label in EventBox to handle events
+            let event_box = EventBox::new();
+            event_box.add(&label);
+            event_box.add_events(EventMask::BUTTON_PRESS_MASK | EventMask::BUTTON_RELEASE_MASK);
 
-        container.add(&event_box);
-        event_box.show_all();
+            let workspace_id = workspace.id;
+            event_box.connect_button_press_event(move |_event_box, event| {
+                if event.button() == 1
+                    && let Err(e) = goto_workspace(workspace_id)
+                {
+                    eprintln!("Failed to switch to workspace {}: {}", workspace_id, e);
+                }
+
+                glib::Propagation::Proceed
+            });
+
+            container.add(&event_box);
+            event_box.show_all();
+        }
     }
 }
 
@@ -156,8 +162,17 @@ fn goto_workspace(workspace_id: u64) -> anyhow::Result<()> {
 
 waybar_module!(NiriWaybar);
 
+#[derive(Debug, Deserialize)]
+struct WaybarWorkspace {
+    /// Name of the workspace
+    name: String,
+    /// Icon to override the name of the workspace with
+    icon: Option<String>,
+}
+
 #[derive(Deserialize)]
 struct Config {
-    #[serde(rename = "format-icons")]
-    format_icons: Option<HashMap<String, String>>,
+    /// The formatted workspaces to display
+    #[serde(rename = "workspaces")]
+    formatted_workspaces: Option<Vec<WaybarWorkspace>>,
 }
